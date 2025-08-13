@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gerador de Equipes & Tabela</title>
+<link rel="icon" href="data:,">
+<!-- Estilo básico -->
+<style>
+  :root{
+    --bg:#0f172a; --card:#111827; --muted:#9ca3af; --text:#e5e7eb; --acc:#22d3ee; --danger:#ef4444;
+    --ok:#10b981; --warn:#f59e0b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue","Noto Sans",sans-serif}
+  .wrap{max-width:1000px;margin:32px auto;padding:0 16px}
+  .card{background:var(--card);border:1px solid #1f2937;border-radius:14px;padding:18px 16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  h1,h2,h3{margin:0 0 12px}
+  .muted{color:var(--muted)}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .row > *{flex:1}
+  input,select,button,textarea{
+    background:#0b1220;border:1px solid #243043;color:var(--text);
+    border-radius:12px;padding:10px 12px;font-size:15px
+  }
+  input::placeholder{color:#6b7280}
+  button{cursor:pointer}
+  button.primary{background:linear-gradient(135deg,#06b6d4,#3b82f6);border:0}
+  button.ghost{background:transparent;border:1px dashed #334155}
+  button.warn{background:var(--warn);border:0;color:#111827}
+  button.danger{background:var(--danger);border:0}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+  .list{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center}
+  .pill{background:#0b1220;border:1px solid #22304a;border-radius:12px;padding:8px 12px}
+  .pill[contenteditable="true"]{outline:none}
+  .x{background:#1f2937;border:1px solid #374151;border-radius:10px;padding:6px 10px;cursor:pointer}
+  .tabs{display:flex;gap:6px;margin:12px 0}
+  .tab{padding:10px 12px;border:1px solid #2b3547;border-bottom:none;border-radius:12px 12px 0 0;background:#0b1220;cursor:pointer}
+  .tab.active{background:#111827;color:#fff;border-color:#3b485f}
+  .panel{display:none}
+  .panel.active{display:block}
+  .grid-teams{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+  .team{border:1px solid #20304a;border-radius:12px;padding:10px;background:#0b1220}
+  .team header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .team h3{font-size:16px}
+  .team ol{margin:0;padding-left:18px}
+  .team li{margin:6px 0;padding:6px;border:1px dashed #22304a;border-radius:8px;background:#0a1220}
+  .team li[contenteditable="true"]{outline:none}
+  table{width:100%;border-collapse:collapse;background:#0b1220;border:1px solid #1f2937;border-radius:12px;overflow:hidden}
+  th,td{border-bottom:1px solid #1f2937;padding:10px;text-align:left;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td[contenteditable="true"]{outline:none}
+  .login{max-width:380px;margin:12vh auto}
+  .center{display:flex;justify-content:center;align-items:center}
+  .right{justify-content:flex-end}
+  small{display:block;margin-top:6px}
+</style>
+<!-- jsPDF para exportar PDF -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+<!-- LOGIN -->
+<section id="loginView" class="wrap">
+  <div class="card login">
+    <h2>Entrar</h2>
+    <p class="muted">Acesso protegido por senha.</p>
+    <div class="row">
+      <input id="senha" type="password" placeholder="Senha de acesso">
+    </div>
+    <div class="toolbar" style="margin-top:10px">
+      <button id="entrarBtn" class="primary">Acessar</button>
+      <button id="mostrarBtn" class="ghost">Mostrar/Ocultar</button>
+    </div>
+    <small class="muted">Dica: senha padrão <strong>074708</strong> (altere no código se quiser).</small>
+  </div>
+</section>
+
+<!-- APP -->
+<section id="appView" class="wrap" style="display:none">
+  <div class="card">
+    <h1>Gerador de Equipes & Tabela</h1>
+    <p class="muted">Adicione nomes, gere equipes de 8 e organize partidas com cartões e placar.</p>
+
+    <!-- Abas -->
+    <div class="tabs">
+      <button class="tab active" data-tab="lista">Lista de Chegada</button>
+      <button class="tab" data-tab="equipes">Equipes</button>
+      <button class="tab" data-tab="tabela">Tabela</button>
+    </div>
+
+    <!-- Painel: Lista -->
+    <div id="panel-lista" class="panel active">
+      <div class="row">
+        <input id="nomeInput" placeholder="Digite um nome e pressione Adicionar">
+        <button id="addBtn" class="primary">Adicionar</button>
+      </div>
+
+      <div class="toolbar" style="margin:10px 0">
+        <button id="exportPdfBtn" class="ghost">Exportar PDF</button>
+        <button id="clearListBtn" class="warn">Limpar Lista</button>
+        <button id="genTeamsBtn" class="primary">Gerar Equipes</button>
+      </div>
+
+      <div id="lista" class="list"></div>
+    </div>
+
+    <!-- Painel: Equipes -->
+    <div id="panel-equipes" class="panel">
+      <div class="toolbar right" style="margin-bottom:10px">
+        <button id="limparEquipesBtn" class="warn">Limpar Equipes</button>
+      </div>
+      <div id="teamsWrap" class="grid-teams"></div>
+    </div>
+
+    <!-- Painel: Tabela -->
+    <div id="panel-tabela" class="panel">
+      <div class="row">
+        <select id="selTeamA"></select>
+        <select id="selTeamB"></select>
+        <button id="addMatchBtn" class="primary">Adicionar Jogo</button>
+      </div>
+      <small class="muted">Dica: clique nas células para editar cartões e placar. “Elenco” mostra os nomes da equipe.</small>
+      <div style="margin-top:10px; overflow:auto">
+        <table id="matchTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Equipe</th>
+              <th>Elenco (editável)</th>
+              <th>Vermelhos</th>
+              <th>Amarelos</th>
+              <th>Placar</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+/* ==========================
+   "Banco embutido": IndexedDB
+   (fallback para localStorage)
+   ========================== */
+const DB_NAME = 'equipesDB';
+const DB_STORE = 'estado';
+let db = null;
+
+const defaultState = {
+  nomes: [],           // lista de chegada (array de strings)
+  equipes: [],         // [{id:'T1', nome:'Equipe 1', jogadores:[...]}]
+  jogos: []            // [{id, teamId, equipeNome, elenco, vermelhos, amarelos, placar, matchGroup}]
+};
+
+// Helpers localStorage fallback
+function lsGet(){ try{ return JSON.parse(localStorage.getItem('estado-equipes')) || null }catch{ return null } }
+function lsSet(v){ localStorage.setItem('estado-equipes', JSON.stringify(v)) }
+
+// Open/Create DB
+function openDB(){
+  return new Promise((resolve)=>{
+    if (!('indexedDB' in window)) {
+      resolve(null); // sem IDB
+      return;
+    }
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = (e)=>{
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(DB_STORE)){
+        db.createObjectStore(DB_STORE);
+      }
+    };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> resolve(null);
+  });
+}
+
+async function saveState(state){
+  if (db){
+    return new Promise((resolve)=>{
+      const tx = db.transaction([DB_STORE],'readwrite');
+      tx.objectStore(DB_STORE).put(state, 'state');
+      tx.oncomplete = ()=>{ lsSet(state); resolve() }; // backup
+      tx.onerror = ()=>{ lsSet(state); resolve() };
+    });
+  } else {
+    lsSet(state);
+  }
+}
+
+async function loadState(){
+  const fallback = lsGet();
+  if (!db){
+    return fallback || structuredClone(defaultState);
+  }
+  return new Promise((resolve)=>{
+    const tx = db.transaction([DB_STORE],'readonly');
+    const req = tx.objectStore(DB_STORE).get('state');
+    req.onsuccess = ()=> resolve(req.result || fallback || structuredClone(defaultState));
+    req.onerror = ()=> resolve(fallback || structuredClone(defaultState));
+  });
+}
+
+/* ==========================
+   Estado em memória
+   ========================== */
+let STATE = structuredClone(defaultState);
+
+/* ==========================
+   Login
+   ========================== */
+const FIXED_PASSWORD = '074708'; // altere se desejar
+const loginView = document.getElementById('loginView');
+const appView   = document.getElementById('appView');
+
+document.getElementById('mostrarBtn').onclick = ()=>{
+  const inp = document.getElementById('senha');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+};
+document.getElementById('entrarBtn').onclick = ()=>{
+  const val = document.getElementById('senha').value.trim();
+  if (val === FIXED_PASSWORD){
+    loginView.style.display='none';
+    appView.style.display='block';
+  } else {
+    alert('Senha incorreta.');
+  }
+};
+
+/* ==========================
+   Abas
+   ========================== */
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab==='tabela') refreshTeamSelects();
+  });
+});
+
+/* ==========================
+   UI Helpers
+   ========================== */
+const elLista = document.getElementById('lista');
+const nomeInput = document.getElementById('nomeInput');
+
+function renderLista(){
+  elLista.innerHTML = '';
+  STATE.nomes.forEach((nome, idx)=>{
+    const nameDiv = document.createElement('div');
+    nameDiv.className='pill';
+    nameDiv.textContent = nome;
+    nameDiv.contentEditable = 'true';
+    nameDiv.spellcheck = false;
+    nameDiv.onblur = ()=>{
+      STATE.nomes[idx] = nameDiv.textContent.trim();
+      saveState(STATE);
+    };
+    const del = document.createElement('button');
+    del.className='x';
+    del.textContent='Remover';
+    del.onclick = ()=>{
+      STATE.nomes.splice(idx,1);
+      saveState(STATE);
+      renderLista();
+    };
+    elLista.appendChild(nameDiv);
+    elLista.appendChild(del);
+  });
+}
+
+function renderEquipes(){
+  const wrap = document.getElementById('teamsWrap');
+  wrap.innerHTML='';
+  STATE.equipes.forEach((t, ti)=>{
+    const box = document.createElement('div');
+    box.className='team';
+    const header = document.createElement('header');
+    const h = document.createElement('h3');
+    h.textContent = t.nome;
+    const btn = document.createElement('button');
+    btn.className='x';
+    btn.textContent='Remover equipe';
+    btn.onclick = ()=>{
+      STATE.equipes.splice(ti,1);
+      saveState(STATE);
+      renderEquipes(); refreshTeamSelects();
+    };
+    header.appendChild(h); header.appendChild(btn);
+    const ol = document.createElement('ol');
+    t.jogadores.forEach((j, ji)=>{
+      const li = document.createElement('li');
+      li.contentEditable='true';
+      li.spellcheck=false;
+      li.textContent=j;
+      li.onblur=()=>{
+        STATE.equipes[ti].jogadores[ji]=li.textContent.trim();
+        saveState(STATE);
+        // Atualiza elenco em jogos que usam essa equipe
+        STATE.jogos.forEach(r=>{
+          if (r.teamId===t.id){
+            r.elenco = STATE.equipes[ti].jogadores.join(', ');
+          }
+        });
+        saveState(STATE);
+        renderTabela();
+      };
+      ol.appendChild(li);
+    });
+    box.appendChild(header);
+    box.appendChild(ol);
+    wrap.appendChild(box);
+  });
+}
+
+/* ==========================
+   Ações Lista
+   ========================== */
+document.getElementById('addBtn').onclick = ()=>{
+  const n = nomeInput.value.trim();
+  if(!n) return;
+  STATE.nomes.push(n);
+  nomeInput.value='';
+  saveState(STATE);
+  renderLista();
+};
+nomeInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('addBtn').click(); } });
+
+document.getElementById('clearListBtn').onclick = ()=>{
+  if(!confirm('Limpar toda a lista de chegada?')) return;
+  STATE.nomes = [];
+  saveState(STATE);
+  renderLista();
+};
+
+document.getElementById('exportPdfBtn').onclick = ()=>{
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text('Lista de Chegada', 14, 16);
+  const body = STATE.nomes.map((n,i)=>[String(i+1), n]);
+  doc.autoTable({ head:[['#','Nome']], body, startY:22, styles:{ fontSize:12 } });
+  doc.save('lista_de_chegada.pdf');
+};
+
+/* ==========================
+   Geração de Equipes
+   ========================== */
+function shuffle(arr){
+  // Fisher-Yates
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function gerarEquipes(){
+  const nomes = STATE.nomes.filter(n=>n && n.trim());
+  if (nomes.length===0){
+    alert('Adicione nomes na lista antes de gerar equipes.');
+    return;
+  }
+  const all = [...nomes];
+  const first16 = all.slice(0,16);
+  const rest = all.slice(16);
+
+  const equipes = [];
+
+  if (first16.length>0){
+    const s = shuffle([...first16]);
+    const a = s.slice(0,8);
+    const b = s.slice(8,16);
+    if (a.length) equipes.push({id:crypto.randomUUID(), nome:'Equipe 1', jogadores:a});
+    if (b.length) equipes.push({id:crypto.randomUUID(), nome:'Equipe 2', jogadores:b});
+  }
+
+  if (rest.length>0){
+    const s2 = shuffle([...rest]);
+    let idx=0, k=3;
+    while (idx < s2.length){
+      const grupo = s2.slice(idx, idx+8);
+      equipes.push({id:crypto.randomUUID(), nome:`Equipe ${k}`, jogadores:grupo});
+      idx+=8; k++;
+    }
+  }
+
+  STATE.equipes = equipes;
+  // Opcional: limpar jogos quando regenerar equipes
+  STATE.jogos = [];
+  saveState(STATE);
+  renderEquipes();
+  refreshTeamSelects();
+  // Troca para a aba Equipes
+  document.querySelector('.tab[data-tab="equipes"]').click();
+}
+
+document.getElementById('genTeamsBtn').onclick = gerarEquipes;
+document.getElementById('limparEquipesBtn').onclick = ()=>{
+  if(!confirm('Remover todas as equipes geradas?')) return;
+  STATE.equipes = [];
+  saveState(STATE);
+  renderEquipes(); refreshTeamSelects();
+};
+
+/* ==========================
+   Tabela (seleção de equipes e edição)
+   ========================== */
+const selA = document.getElementById('selTeamA');
+const selB = document.getElementById('selTeamB');
+const tbody = document.querySelector('#matchTable tbody');
+
+function refreshTeamSelects(){
+  const opts = STATE.equipes.map(t=>`<option value="${t.id}">${t.nome}</option>`).join('');
+  selA.innerHTML = `<option value="">Equipe A...</option>${opts}`;
+  selB.innerHTML = `<option value="">Equipe B...</option>${opts}`;
+}
+
+document.getElementById('addMatchBtn').onclick = ()=>{
+  const a = selA.value, b = selB.value;
+  if (!a || !b || a===b){
+    alert('Selecione duas equipes diferentes.');
+    return;
+  }
+  const tA = STATE.equipes.find(t=>t.id===a);
+  const tB = STATE.equipes.find(t=>t.id===b);
+  if (!tA || !tB) return;
+
+  // Cada jogo vira duas linhas (uma por equipe), ligadas por matchGroup
+  const matchGroup = crypto.randomUUID();
+  const r1 = {
+    id: crypto.randomUUID(),
+    teamId: tA.id,
+    equipeNome: tA.nome,
+    elenco: tA.jogadores.join(', '),
+    vermelhos: '0',
+    amarelos: '0',
+    placar: '0',
+    matchGroup
+  };
+  const r2 = {
+    id: crypto.randomUUID(),
+    teamId: tB.id,
+    equipeNome: tB.nome,
+    elenco: tB.jogadores.join(', '),
+    vermelhos: '0',
+    amarelos: '0',
+    placar: '0',
+    matchGroup
+  };
+  STATE.jogos.push(r1, r2);
+  saveState(STATE);
+  renderTabela();
+};
+
+function renderTabela(){
+  tbody.innerHTML='';
+  // Agrupar por matchGroup só para mostrar # sequencial
+  const groups = {};
+  STATE.jogos.forEach(r=>{
+    (groups[r.matchGroup]??=[]).push(r);
+  });
+  let num=1;
+  Object.values(groups).forEach(rows=>{
+    rows.forEach(r=>{
+      const tr = document.createElement('tr');
+      // #
+      const c0 = document.createElement('td'); c0.textContent = num; tr.appendChild(c0);
+      // Equipe
+      const c1 = document.createElement('td'); c1.textContent = r.equipeNome; tr.appendChild(c1);
+      // Elenco editável
+      const c2 = document.createElement('td'); c2.contentEditable='true'; c2.textContent = r.elenco; c2.onblur=()=>{ r.elenco=c2.textContent.trim(); saveState(STATE) }; tr.appendChild(c2);
+      // Vermelhos
+      const c3 = document.createElement('td'); c3.contentEditable='true'; c3.textContent = r.vermelhos; c3.onblur=()=>{ r.vermelhos=c3.textContent.trim(); saveState(STATE) }; tr.appendChild(c3);
+      // Amarelos
+      const c4 = document.createElement('td'); c4.contentEditable='true'; c4.textContent = r.amarelos; c4.onblur=()=>{ r.amarelos=c4.textContent.trim(); saveState(STATE) }; tr.appendChild(c4);
+      // Placar
+      const c5 = document.createElement('td'); c5.contentEditable='true'; c5.textContent = r.placar; c5.onblur=()=>{ r.placar=c5.textContent.trim(); saveState(STATE) }; tr.appendChild(c5);
+      // Ações
+      const c6 = document.createElement('td');
+      const del = document.createElement('button'); del.className='x'; del.textContent='Remover';
+      del.onclick = ()=>{
+        const idx = STATE.jogos.findIndex(x=>x.id===r.id);
+        if (idx>=0){
+          // Remover as duas linhas do jogo (mesmo grupo)
+          const grp = STATE.jogos[idx].matchGroup;
+          STATE.jogos = STATE.jogos.filter(x=>x.matchGroup!==grp);
+          saveState(STATE);
+          renderTabela();
+        }
+      };
+      c6.appendChild(del); tr.appendChild(c6);
+      tbody.appendChild(tr);
+    });
+    num++;
+  });
+}
+
+/* ==========================
+   Bootstrap da aplicação
+   ========================== */
+(async function init(){
+  db = await openDB();
+  STATE = await loadState();
+  renderLista();
+  renderEquipes();
+  refreshTeamSelects();
+  renderTabela();
+})();
+</script>
+</body>
+</html>
